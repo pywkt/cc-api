@@ -1,0 +1,13 @@
+node_modules/
+.env
+*.log
+.DS_Store
+dist/
+sessions/
+
+# Claude Code local settings (user-specific)
+.claude/
+CLAUDE.md
+
+# Bun lockfile (optional: remove this line to commit lockfile for reproducible builds)
+bun.lockb

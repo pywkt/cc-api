@@ -37,9 +37,31 @@ function isValidApiKey(providedKey: string): boolean {
   return isValid;
 }
 
+// Ollama API paths that don't require auth (for Home Assistant compatibility)
+const ollamaPublicPaths = [
+  '/api/chat',
+  '/api/tags',
+  '/api/generate',
+  '/v1/chat/completions',
+  '/v1/models',
+];
+
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
+  const path = c.req.path;
+
   // Skip auth for health endpoints
-  if (c.req.path === '/health' || c.req.path === '/ready') {
+  if (path === '/health' || path === '/ready') {
+    return next();
+  }
+
+  // Skip auth for Ollama API endpoints (for Home Assistant compatibility)
+  // These endpoints are meant to be used on a trusted local network
+  if (config.ollamaApiEnabled && ollamaPublicPaths.some((p) => path.startsWith(p))) {
+    return next();
+  }
+
+  // Also allow the root path for Ollama health check
+  if (config.ollamaApiEnabled && path === '/') {
     return next();
   }
 

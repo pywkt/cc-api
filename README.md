@@ -6,11 +6,15 @@ A lightweight HTTP API server that wraps the Claude Code CLI, enabling remote ma
 
 - **Remote Claude Code Access**: Query Claude Code from any machine on your network
 - **Session Persistence**: Continue conversations across multiple requests
+- **Streaming Responses**: Real-time streaming for Ollama/OpenAI endpoints
 - **API Key Authentication**: Secure access with configurable API keys
 - **Model Selection**: Configure default model or override per-request
+- **Ollama/OpenAI Compatible**: Works with Home Assistant and other LLM clients
 - **Request Tracing**: Unique request IDs for debugging and logging
 - **Graceful Error Handling**: Structured error responses with helpful messages
 - **TypeScript**: Fully typed codebase with strict mode enabled
+
+> **Note:** The Ollama-compatible endpoints (`/api/chat`, `/v1/chat/completions`) do not require authentication for Home Assistant compatibility. See [Security Considerations](#security-considerations) and [Home Assistant Integration](#home-assistant-integration) for details.
 
 ## Requirements
 
@@ -281,6 +285,8 @@ Delete a session from the store.
 | `API_KEYS` | (required) | Comma-separated list of valid API keys |
 | `CLAUDE_TIMEOUT_MS` | `120000` | Timeout for Claude CLI calls (ms) |
 | `CLAUDE_MODEL` | (none) | Default model: `haiku`, `sonnet`, `opus`, or full model name |
+| `DEFAULT_ALLOWED_TOOLS` | (none) | Default tools for all requests (e.g., `WebSearch,WebFetch`) |
+| `OLLAMA_API_ENABLED` | `true` | Enable Ollama-compatible endpoints for Home Assistant |
 | `LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warn`, `error` |
 | `SESSION_STORAGE` | `memory` | Session storage type: `memory` or `file` |
 | `SESSION_STORAGE_PATH` | `./sessions` | Path for file-based session storage |
@@ -480,6 +486,232 @@ bun run typecheck
 3. Add business logic to `src/services/`
 4. Add routes to `src/routes/`
 5. Register routes in `src/app.ts`
+
+## Home Assistant Integration
+
+> **WARNING: Security Notice**
+>
+> The Ollama-compatible endpoints (`/api/chat`, `/v1/chat/completions`, etc.) do **NOT** require API key authentication. This is because Home Assistant's Ollama integration does not support sending API keys.
+>
+> **Only run this server on a trusted local network.** Anyone with network access to the server can send requests to Claude Code without authentication.
+>
+> To disable these unauthenticated endpoints, set `OLLAMA_API_ENABLED=false` in your `.env` file.
+
+CC-API includes Ollama-compatible endpoints, allowing you to use Claude Code as a voice assistant in Home Assistant.
+
+### Setup
+
+1. **Configure CC-API** with web search enabled:
+
+```bash
+# .env
+DEFAULT_ALLOWED_TOOLS=WebSearch,WebFetch
+OLLAMA_API_ENABLED=true
+```
+
+2. **Start CC-API** on your server:
+
+```bash
+bun run start
+```
+
+3. **Add Ollama integration in Home Assistant:**
+   - Go to Settings > Devices & Services > Add Integration
+   - Search for "Ollama"
+   - Enter the URL of your CC-API server (e.g., `http://192.168.1.100:3000`)
+   - Select any model name (e.g., `claude-code`)
+
+4. **Configure your Voice Assistant pipeline:**
+   - Go to Settings > Voice Assistants
+   - Edit your assistant
+   - Set the Conversation Agent to your new Ollama integration
+
+### Ollama-Compatible Endpoints
+
+These endpoints mimic the Ollama API, allowing any Ollama-compatible client to use Claude Code.
+
+#### POST /api/chat (Ollama Native)
+
+Supports both streaming and non-streaming responses.
+
+**Non-streaming request:**
+```bash
+curl http://localhost:3000/api/chat \
+  -d '{
+    "model": "claude-code",
+    "messages": [
+      {"role": "user", "content": "What is the capital of France?"}
+    ],
+    "stream": false
+  }'
+```
+
+**Response:**
+```json
+{
+  "model": "claude-code",
+  "created_at": "2024-01-15T10:30:00.000Z",
+  "message": {
+    "role": "assistant",
+    "content": "The capital of France is Paris."
+  },
+  "done": true,
+  "done_reason": "stop"
+}
+```
+
+**Streaming request:**
+```bash
+curl -N http://localhost:3000/api/chat \
+  -d '{
+    "model": "claude-code",
+    "messages": [
+      {"role": "user", "content": "What is the capital of France?"}
+    ],
+    "stream": true
+  }'
+```
+
+**Streaming response (NDJSON):**
+```json
+{"model":"claude-code","created_at":"...","message":{"role":"assistant","content":"The"},"done":false}
+{"model":"claude-code","created_at":"...","message":{"role":"assistant","content":" capital"},"done":false}
+{"model":"claude-code","created_at":"...","message":{"role":"assistant","content":" of France"},"done":false}
+{"model":"claude-code","created_at":"...","message":{"role":"assistant","content":" is Paris."},"done":false}
+{"model":"claude-code","created_at":"...","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop"}
+```
+
+#### POST /v1/chat/completions (OpenAI Compatible)
+
+Supports both streaming and non-streaming responses.
+
+**Non-streaming request:**
+```bash
+curl http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-code",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+```
+
+**Response:**
+```json
+{
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "created": 1705312200,
+  "model": "claude-code",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 25,
+    "completion_tokens": 10,
+    "total_tokens": 35
+  }
+}
+```
+
+**Streaming request:**
+```bash
+curl -N http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-code",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ],
+    "stream": true
+  }'
+```
+
+**Streaming response (SSE):**
+```
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1705312200,"model":"claude-code","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1705312200,"model":"claude-code","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1705312200,"model":"claude-code","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+
+data: [DONE]
+```
+
+#### GET /api/tags (List Models)
+
+```bash
+curl http://localhost:3000/api/tags
+```
+
+**Response:**
+```json
+{
+  "models": [
+    {
+      "name": "claude-code",
+      "model": "claude-code:latest",
+      "modified_at": "2024-01-15T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+#### GET /v1/models (OpenAI Compatible)
+
+```bash
+curl http://localhost:3000/v1/models
+```
+
+**Response:**
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "claude-code",
+      "object": "model",
+      "created": 1705312200,
+      "owned_by": "anthropic"
+    }
+  ]
+}
+```
+
+### Features with Home Assistant
+
+- **Web Search**: Ask about current events, weather, news
+- **Conversation Memory**: Multi-turn conversations within a session
+- **Home Control**: When exposed entities are configured in Home Assistant
+
+### Example Conversation
+
+> **You:** "What's the weather like in Tokyo today?"
+>
+> **Claude:** *searches the web and responds with current weather*
+
+> **You:** "Turn on the living room lights"
+>
+> **Claude:** *controls exposed Home Assistant entities*
+
+### Security Note
+
+The Ollama-compatible endpoints (`/api/chat`, `/v1/chat/completions`) do not require API key authentication by default, as Home Assistant's Ollama integration doesn't support sending API keys. Only expose this server on a trusted local network.
+
+To disable the Ollama API and require authentication on all endpoints:
+
+```bash
+OLLAMA_API_ENABLED=false
+```
 
 ## Troubleshooting
 

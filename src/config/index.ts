@@ -7,6 +7,14 @@ const envSchema = z.object({
   API_KEYS: z.string().transform((s) => s.split(',').map((k) => k.trim())),
   CLAUDE_TIMEOUT_MS: z.string().default('120000').transform(Number),
   CLAUDE_MODEL: z.string().optional(),
+  DEFAULT_ALLOWED_TOOLS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(',').map((t) => t.trim()) : undefined)),
+  OLLAMA_API_ENABLED: z
+    .string()
+    .default('true')
+    .transform((s) => s.toLowerCase() === 'true'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   SESSION_STORAGE: z.enum(['memory', 'file']).default('memory'),
   SESSION_STORAGE_PATH: z.string().default('./sessions'),
@@ -29,6 +37,8 @@ function loadConfig(): Config {
     apiKeys: env.API_KEYS,
     claudeTimeout: env.CLAUDE_TIMEOUT_MS,
     claudeModel: env.CLAUDE_MODEL,
+    defaultAllowedTools: env.DEFAULT_ALLOWED_TOOLS,
+    ollamaApiEnabled: env.OLLAMA_API_ENABLED,
     logLevel: env.LOG_LEVEL,
     sessionStorage: {
       type: env.SESSION_STORAGE,

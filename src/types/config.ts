@@ -4,6 +4,8 @@ export interface Config {
   apiKeys: string[];
   claudeTimeout: number;
   claudeModel?: string;
+  defaultAllowedTools?: string[];
+  ollamaApiEnabled: boolean;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   sessionStorage: {
     type: 'memory' | 'file';

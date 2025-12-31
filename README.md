@@ -487,6 +487,78 @@ bun run typecheck
 4. Add routes to `src/routes/`
 5. Register routes in `src/app.ts`
 
+## Running as a Service (Linux/systemd)
+
+To run CC-API as a background service that starts automatically on boot:
+
+### 1. Create a systemd service file
+
+```bash
+sudo nano /etc/systemd/system/cc-api.service
+```
+
+Add the following content (adjust paths and username for your system):
+
+```ini
+[Unit]
+Description=CC-API - Claude Code HTTP API Server
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/cc-api
+ExecStart=/path/to/bun run start
+Restart=on-failure
+RestartSec=5
+
+# Environment
+Environment=NODE_ENV=production
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Finding your paths:**
+```bash
+# Find bun path
+which bun
+
+# Find project path
+pwd  # (run from cc-api directory)
+```
+
+### 2. Enable and start the service
+
+```bash
+# Reload systemd to recognize the new service
+sudo systemctl daemon-reload
+
+# Enable auto-start on boot
+sudo systemctl enable cc-api
+
+# Start the service now
+sudo systemctl start cc-api
+
+# Check status
+sudo systemctl status cc-api
+```
+
+### 3. Managing the service
+
+| Command | Description |
+|---------|-------------|
+| `sudo systemctl start cc-api` | Start the service |
+| `sudo systemctl stop cc-api` | Stop the service |
+| `sudo systemctl restart cc-api` | Restart after config changes |
+| `sudo systemctl status cc-api` | Check if running |
+| `sudo journalctl -u cc-api -f` | View live logs |
+| `sudo journalctl -u cc-api --since "1 hour ago"` | View recent logs |
+
 ## Home Assistant Integration
 
 > **WARNING: Security Notice**
